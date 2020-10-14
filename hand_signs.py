@@ -25,6 +25,16 @@ def loading_datasets():
 
 X_tr_org, X_ts_org, Y_tr_org, Y_ts_org = loading_datasets()
 
-i = 6
-plt.imshow(X_tr_org[i])
-print("y = " + str(np.squeeze(Y_tr_org[:, i])))    
+## normalize the features
+X_tr = X_tr_org/255 
+X_ts = X_ts_org/255
+
+## coverted each output as a 6 neuron Flattened layer.
+Y_tr = (np.eye(6)[Y_tr_org.reshape(-1)])
+Y_ts = (np.eye(6)[Y_ts_org.reshape(-1)]) 
+
+conv_layers = {}
+
+## creating placeholders
+def create_ph
+
