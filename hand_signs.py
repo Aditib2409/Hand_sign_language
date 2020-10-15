@@ -10,6 +10,8 @@ from PIL import Image
 from scipy import ndimage
 from tensorflow.python.framework import ops
 
+np.random.seed(1)
+
 def loading_datasets():
     tr_dataset = h5py.File('datasets/train_signs.h5',"r")
     X_tr_org = np.array(tr_dataset["train_set_x"][:])
@@ -21,9 +23,9 @@ def loading_datasets():
     Y_tr_org = Y_tr_org.reshape((1, Y_tr_org.shape[0]))
     Y_ts_org = Y_ts_org.reshape((1, Y_ts_org.shape[0]))
     
-    return X_tr_org, X_ts_org, Y_tr_org, Y_ts_org
+    return X_tr_org, X_ts_org, Y_tr_org, Y_ts_org, clss
 
-X_tr_org, X_ts_org, Y_tr_org, Y_ts_org = loading_datasets()
+X_tr_org, X_ts_org, Y_tr_org, Y_ts_org, classes = loading_datasets()
 
 ## normalize the features
 X_tr = X_tr_org/255 
@@ -38,13 +40,15 @@ conv_layers = {}
 ## creating placeholders
 def create_ph(N_h0, N_w0, N_c0, N_y0):
     
-    X = tf.placeholder('float', shape = (None, N_h0, N_w0, N_c0), name = 'X')
-    Y = tf.placeholder('float', shape = (None, N_h0, N_w0, N_c0), name = 'Y')
+    X = tf.placeholder('float32', shape = (None, N_h0, N_w0, N_c0), name = 'X')
+    Y = tf.placeholder('float32', shape = (None, N_y0), name = 'Y')
     
     return X, Y
 
 ## initializing the learning parameters
 def initializing_params():
+    
+    tf.compat.v1.set_random_seed(1)
     W1 = tf.get_variable("W1", shape = (4, 4, 3, 8), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
     W2 = tf.get_variable("W2", shape = (2, 2, 8, 16), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
     
@@ -52,10 +56,22 @@ def initializing_params():
               "W2" : W2}
     return params
 
+tf.reset_default_graph()
+with tf.Session() as sess_test:
+    parameters = initializing_params()
+    init = tf.global_variables_initializer()
+    sess_test.run(init)
+    print("W1[1,1,1] = \n" + str(parameters["W1"].eval()[1,1,1]))
+    print("W1.shape: " + str(parameters["W1"].shape))
+    print("\n")
+    print("W2[1,1,1] = \n" + str(parameters["W2"].eval()[1,1,1]))
+    print("W2.shape: " + str(parameters["W2"].shape))
+
 def frwd_prop(X, params):
     
-    W1 = params["W1"]
-    W2 = params["W2"]
+    tf.compat.v1.set_random_seed(1)
+    W1 = params['W1']
+    W2 = params['W2']
     
     # CONV2D
     Z1 = tf.nn.conv2d(X, W1, strides = [1,1,1,1], padding = 'SAME')
@@ -75,7 +91,18 @@ def frwd_prop(X, params):
     Z3 = tf.contrib.layers.fully_connected(F, 6, activation_fn = None)
     
     return Z3
-    
+
+tf.reset_default_graph()
+
+with tf.Session() as sess_1:
+    np.random.seed(1)
+    X, Y = create_ph(64, 64, 3, 6)
+    params = initializing_params()
+    Z3 = frwd_prop(X, params)
+    init_1 = tf.global_variables_initializer()
+    sess_1.run(init_1)
+    b = sess_1.run(Z3, {X: np.random.randn(2,64,64,3), Y: np.random.randn(2,6)})
+    print("Z3 = \n" + str(b))
 ## cost computation
 def cost_computation(Z3, Y):
     cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = Z3, labels = Y))
@@ -83,7 +110,7 @@ def cost_computation(Z3, Y):
     return cost
 
 ## creating random minibatches
-def create_randm_minibatches(X, Y, minibatch_size = 64):
+def create_randm_minibatches(X, Y, minibatch_size = 64, seed = 0):
     m = X.shape[0]
     minibatches = []
     #np.random.randn(seed)
@@ -96,13 +123,13 @@ def create_randm_minibatches(X, Y, minibatch_size = 64):
     
     for m in range(0, minibatches_num):
         minibatch_X = X_shuff[m*minibatch_size:(m+1)*minibatch_size, :, :, :]
-        minibatch_Y = Y_shuff[m*minibatch_size:(m+1)*minibatch_size, :, :, :]
+        minibatch_Y = Y_shuff[m*minibatch_size:(m+1)*minibatch_size, :]
         minibatch = (minibatch_X, minibatch_Y)
         minibatches.append(minibatch)
         
     if m % minibatch_size != 0:
-        minibatch_X = X_shuff[minibatches_num*minibatch_size:m*minibatch_size, :, :, :]
-        minibatch_Y = Y_shuff[minibatches_num*minibatch_size:m*minibatch_size, :, :, :]
+        minibatch_X = X_shuff[minibatches_num*minibatch_size:m, :, :, :]
+        minibatch_Y = Y_shuff[minibatches_num*minibatch_size:m, :]
         minibatch = (minibatch_X, minibatch_Y)
         minibatches.append(minibatch)
     
@@ -112,13 +139,16 @@ def create_randm_minibatches(X, Y, minibatch_size = 64):
 ## creating the final model
 
 def model(X_tr, X_ts, Y_tr, Y_ts, learning_rate = 0.009, num_epochs = 100, minibatch_size = 64, print_cost = True):
+    
     ops.reset_default_graph()
+    tf.compat.v1.set_random_seed(1)
+    seed = 3    
     (m, N_h0, N_w0, N_c0) = X_tr.shape
-    N_y0 = Y_tr.shape[1]
+    N_y = Y_tr.shape[1]
     costs = []
     
     
-    X, Y = create_ph(N_h0, N_w0, N_c0, N_y0)
+    X, Y = create_ph(N_h0, N_w0, N_c0, N_y)
     
     params = initializing_params()
     
@@ -135,9 +165,9 @@ def model(X_tr, X_ts, Y_tr, Y_ts, learning_rate = 0.009, num_epochs = 100, minib
     
         for e in range(0,num_epochs):
             minibatch_cost = 0
-            num_minibatches = math.floor(m/minibatch_size)
-            #seed = seed + 1
-            minibatches = create_randm_minibatches(X, Y, minibatch_size)
+            num_minibatches = int(m/minibatch_size)
+            seed = seed + 1
+            minibatches = create_randm_minibatches(X_tr, Y_tr, minibatch_size, seed)
             
             for i in minibatches:
                (minibatch_X, minibatch_Y) = i
@@ -172,7 +202,7 @@ def model(X_tr, X_ts, Y_tr, Y_ts, learning_rate = 0.009, num_epochs = 100, minib
             return tr_accuracy, ts_accuracy, params
 
 
-_, _, params = model(X_tr, X_ts, Y_tr, Y_ts, learning_rate = 0.009, num_epochs = 100, minibatch_size = 64, print_cost = True)
+_, _, params = model(X_tr, X_ts, Y_tr, Y_ts)
         
         
    
