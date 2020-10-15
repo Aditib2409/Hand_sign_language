@@ -36,5 +36,22 @@ Y_ts = (np.eye(6)[Y_ts_org.reshape(-1)])
 conv_layers = {}
 
 ## creating placeholders
-def create_ph
+def create_ph(N_h0, N_w0, N_c0, N_y0):
+    
+    X = tf.placeholder('float', shape = (None, N_h0, N_w0, N_c0), name = 'X')
+    Y = tf.placeholder('float', shape = (None, N_h0, N_w0, N_c0), name = 'Y')
+    
+    return X, Y
+
+## initializing the learning parameters
+def initializing_params():
+    W1 = tf.get_variable("W1", shape = (4, 4, 3, 8), initailizer = tf.contrib.layers.xavier_initializer(seed = 0))
+    W2 = tf.get_variable("W2", shape = (2, 2, 8, 16), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+    
+    params = {"W1" : W1,
+              "W2" : W2}
+    return params
+
+def frwd_prop(X, params):
+    
 
