@@ -45,7 +45,7 @@ def create_ph(N_h0, N_w0, N_c0, N_y0):
 
 ## initializing the learning parameters
 def initializing_params():
-    W1 = tf.get_variable("W1", shape = (4, 4, 3, 8), initailizer = tf.contrib.layers.xavier_initializer(seed = 0))
+    W1 = tf.get_variable("W1", shape = (4, 4, 3, 8), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
     W2 = tf.get_variable("W2", shape = (2, 2, 8, 16), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
     
     params = {"W1" : W1,
@@ -54,4 +54,129 @@ def initializing_params():
 
 def frwd_prop(X, params):
     
+    W1 = params["W1"]
+    W2 = params["W2"]
+    
+    # CONV2D
+    Z1 = tf.nn.conv2d(X, W1, strides = [1,1,1,1], padding = 'SAME')
+    # Relu
+    A1 = tf.nn.relu(Z1)
+    #MAXPOOL
+    P1 = tf.nn.max_pool(A1, ksize = [1,8,8,1], strides = [1,8,8,1], padding = 'SAME')
+    # CONV2D
+    Z2 = tf.nn.conv2d(P1, W2, strides = [1,1,1,1], padding = 'SAME')
+    # Relu
+    A2 = tf.nn.relu(Z2)
+    #MAXPOOL
+    P2 = tf.nn.max_pool(A2, ksize = [1,4,4,1], strides = [1,4,4,1], padding = 'SAME')
+    #FLATTEN
+    F = tf.contrib.layers.flatten(P2)
+    #Fully connected layer
+    Z3 = tf.contrib.layers.fully_connected(F, 6, activation_fn = None)
+    
+    return Z3
+    
+## cost computation
+def cost_computation(Z3, Y):
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = Z3, labels = Y))
+    
+    return cost
 
+## creating random minibatches
+def create_randm_minibatches(X, Y, minibatch_size = 64):
+    m = X.shape[0]
+    minibatches = []
+    #np.random.randn(seed)
+    
+    perm = list(np.random.permutation(m)) 
+    X_shuff = X[perm,:,:,:]
+    Y_shuff = Y[perm, :]
+    
+    minibatches_num = math.floor(m/minibatch_size)
+    
+    for m in range(0, minibatches_num):
+        minibatch_X = X_shuff[m*minibatch_size:(m+1)*minibatch_size, :, :, :]
+        minibatch_Y = Y_shuff[m*minibatch_size:(m+1)*minibatch_size, :, :, :]
+        minibatch = (minibatch_X, minibatch_Y)
+        minibatches.append(minibatch)
+        
+    if m % minibatch_size != 0:
+        minibatch_X = X_shuff[minibatches_num*minibatch_size:m*minibatch_size, :, :, :]
+        minibatch_Y = Y_shuff[minibatches_num*minibatch_size:m*minibatch_size, :, :, :]
+        minibatch = (minibatch_X, minibatch_Y)
+        minibatches.append(minibatch)
+    
+    return minibatches
+
+
+## creating the final model
+
+def model(X_tr, X_ts, Y_tr, Y_ts, learning_rate = 0.009, num_epochs = 100, minibatch_size = 64, print_cost = True):
+    ops.reset_default_graph()
+    (m, N_h0, N_w0, N_c0) = X_tr.shape
+    N_y0 = Y_tr.shape[1]
+    costs = []
+    
+    
+    X, Y = create_ph(N_h0, N_w0, N_c0, N_y0)
+    
+    params = initializing_params()
+    
+    Z3 = frwd_prop(X, params)
+    
+    cost = cost_computation(Z3, Y)
+    
+    optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cost)
+    
+    init = tf.global_variables_initializer()
+    
+    with tf.Session() as sess:
+        sess.run(init)
+    
+        for e in range(0,num_epochs):
+            minibatch_cost = 0
+            num_minibatches = math.floor(m/minibatch_size)
+            #seed = seed + 1
+            minibatches = create_randm_minibatches(X, Y, minibatch_size)
+            
+            for i in minibatches:
+               (minibatch_X, minibatch_Y) = i
+               _, temp_cost = sess.run([optimizer, cost], {X: minibatch_X, Y: minibatch_Y})
+               
+               minibatch_cost += temp_cost/num_minibatches
+           
+            if print_cost == True and e % 5 == 0:
+                print("cost after epoch %i = %f" %(e, minibatch_cost))
+            if print_cost == True and e % 1 == 0:
+                costs.append(minibatch_cost)
+           
+            plt.plot(np.squeeze(costs))
+            plt.xlabel('iteration per tens')
+            plt.ylabel('cost')
+            plt.title('Learning rate = ' + str(learning_rate))
+            plt.show()
+            
+            ## calculate the predictions
+            prediction_output = tf.argmax(Z3, axis = 1)
+            prediction_actual = tf.argmax(Y, axis = 1)
+            correct_prediction = tf.equal(prediction_output, prediction_actual)
+            
+            accuracy = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
+            print(accuracy)
+            tr_accuracy = accuracy.eval({X: X_tr, Y: Y_tr})
+            ts_accuracy = accuracy.eval({X: X_tr, Y: Y_tr})
+            
+            print("training accuracy = " + str(tr_accuracy))
+            print("testing accuracy = " + str(ts_accuracy))
+            
+            return tr_accuracy, ts_accuracy, params
+
+
+_, _, params = model(X_tr, X_ts, Y_tr, Y_ts, learning_rate = 0.009, num_epochs = 100, minibatch_size = 64, print_cost = True)
+        
+        
+   
+    
+ 
+        
+    
