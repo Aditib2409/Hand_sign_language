@@ -40,8 +40,8 @@ conv_layers = {}
 ## creating placeholders
 def create_ph(N_h0, N_w0, N_c0, N_y0):
     
-    X = tf.placeholder('float32', shape = (None, N_h0, N_w0, N_c0), name = 'X')
-    Y = tf.placeholder('float32', shape = (None, N_y0), name = 'Y')
+    X = tf.compat.v1.placeholder('float32', shape = (None, N_h0, N_w0, N_c0), name = 'X')
+    Y = tf.compat.v1.placeholder('float32', shape = (None, N_y0), name = 'Y')
     
     return X, Y
 
@@ -49,13 +49,13 @@ def create_ph(N_h0, N_w0, N_c0, N_y0):
 def initializing_params():
     
     tf.compat.v1.set_random_seed(1)
-    W1 = tf.get_variable("W1", shape = (4, 4, 3, 8), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
-    W2 = tf.get_variable("W2", shape = (2, 2, 8, 16), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+    W1 = tf.compat.v1.get_variable("W1", shape = (4, 4, 3, 8), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
+    W2 = tf.compat.v1.get_variable("W2", shape = (2, 2, 8, 16), initializer = tf.contrib.layers.xavier_initializer(seed = 0))
     
-    params = {"W1" : W1,
-              "W2" : W2}
+    params = {"W1" : W1,"W2" : W2}
+    
     return params
-
+"""
 tf.reset_default_graph()
 with tf.Session() as sess_test:
     parameters = initializing_params()
@@ -66,10 +66,10 @@ with tf.Session() as sess_test:
     print("\n")
     print("W2[1,1,1] = \n" + str(parameters["W2"].eval()[1,1,1]))
     print("W2.shape: " + str(parameters["W2"].shape))
-
+"""
 def frwd_prop(X, params):
     
-    tf.compat.v1.set_random_seed(1)
+    
     W1 = params['W1']
     W2 = params['W2']
     
@@ -78,13 +78,13 @@ def frwd_prop(X, params):
     # Relu
     A1 = tf.nn.relu(Z1)
     #MAXPOOL
-    P1 = tf.nn.max_pool(A1, ksize = [1,8,8,1], strides = [1,8,8,1], padding = 'SAME')
+    P1 = tf.nn.max_pool2d(A1, ksize = [1,8,8,1], strides = [1,8,8,1], padding = 'SAME')
     # CONV2D
     Z2 = tf.nn.conv2d(P1, W2, strides = [1,1,1,1], padding = 'SAME')
     # Relu
     A2 = tf.nn.relu(Z2)
     #MAXPOOL
-    P2 = tf.nn.max_pool(A2, ksize = [1,4,4,1], strides = [1,4,4,1], padding = 'SAME')
+    P2 = tf.nn.max_pool2d(A2, ksize = [1,4,4,1], strides = [1,4,4,1], padding = 'SAME')
     #FLATTEN
     F = tf.contrib.layers.flatten(P2)
     #Fully connected layer
@@ -92,15 +92,15 @@ def frwd_prop(X, params):
     
     return Z3
 
-tf.reset_default_graph()
+tf.compat.v1.reset_default_graph()
 
-with tf.Session() as sess_1:
+with tf.compat.v1.Session() as sess_1:
     np.random.seed(1)
     X, Y = create_ph(64, 64, 3, 6)
     params = initializing_params()
     Z3 = frwd_prop(X, params)
-    init_1 = tf.global_variables_initializer()
-    sess_1.run(init_1)
+    init = tf.global_variables_initializer()
+    sess_1.run(init)
     b = sess_1.run(Z3, {X: np.random.randn(2,64,64,3), Y: np.random.randn(2,6)})
     print("Z3 = \n" + str(b))
 ## cost computation
@@ -156,7 +156,7 @@ def model(X_tr, X_ts, Y_tr, Y_ts, learning_rate = 0.009, num_epochs = 100, minib
     
     cost = cost_computation(Z3, Y)
     
-    optimizer = tf.train.AdamOptimizer(learning_rate = learning_rate).minimize(cost)
+    optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate = learning_rate).minimize(cost)
     
     init = tf.global_variables_initializer()
     
